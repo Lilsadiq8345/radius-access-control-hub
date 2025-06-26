@@ -1,292 +1,357 @@
 
-import { useState } from 'react';
-import { Server, Activity, Zap, HardDrive, Cpu, Wifi, Settings, Play, Pause, RotateCcw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Server, Activity, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+
+interface RadiusServer {
+  id: string;
+  name: string;
+  ip_address: string;
+  port: number;
+  shared_secret: string;
+  status: string;
+  cpu_usage?: number;
+  memory_usage?: number;
+  disk_usage?: number;
+  created_at: string;
+  updated_at: string;
+}
 
 const ServerStatus = () => {
-  // Mock server data
-  const servers = [
-    {
-      id: 1,
-      name: 'Primary RADIUS',
-      hostname: 'radius-primary.company.com',
-      ip: '10.0.1.50',
-      port: 1812,
-      status: 'Online',
-      uptime: '45d 12h 34m',
-      version: 'FreeRADIUS 3.2.1',
-      load: 67,
-      cpu: 45,
-      memory: 72,
-      disk: 34,
-      requestsPerSecond: 234,
-      totalRequests: 1247892,
-      successRate: 98.7,
-      avgResponseTime: 125,
-      clients: 23
-    },
-    {
-      id: 2,
-      name: 'Secondary RADIUS',
-      hostname: 'radius-secondary.company.com',
-      ip: '10.0.1.51',
-      port: 1812,
-      status: 'Online',
-      uptime: '45d 12h 30m',
-      version: 'FreeRADIUS 3.2.1',
-      load: 43,
-      cpu: 32,
-      memory: 58,
-      disk: 41,
-      requestsPerSecond: 167,
-      totalRequests: 892341,
-      successRate: 98.9,
-      avgResponseTime: 118,
-      clients: 18
-    },
-    {
-      id: 3,
-      name: 'Backup RADIUS',
-      hostname: 'radius-backup.company.com',
-      ip: '10.0.1.52',
-      port: 1812,
-      status: 'Standby',
-      uptime: '45d 12h 28m',
-      version: 'FreeRADIUS 3.2.1',
-      load: 12,
-      cpu: 8,
-      memory: 23,
-      disk: 28,
-      requestsPerSecond: 0,
-      totalRequests: 45623,
-      successRate: 99.1,
-      avgResponseTime: 95,
-      clients: 0
+  const [servers, setServers] = useState<RadiusServer[]>([]);
+  const [isAddServerOpen, setIsAddServerOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    name: '',
+    ip_address: '',
+    port: '1812',
+    shared_secret: '',
+    status: 'active'
+  });
+  const { toast } = useToast();
+  const { userProfile } = useAuth();
+
+  const fetchServers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('radius_servers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to fetch servers",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setServers(data || []);
+    } catch (error) {
+      console.error('Error fetching servers:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  useEffect(() => {
+    fetchServers();
+  }, []);
+
+  const handleAddServer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const { error } = await supabase
+        .from('radius_servers')
+        .insert([{
+          name: formData.name,
+          ip_address: formData.ip_address,
+          port: parseInt(formData.port),
+          shared_secret: formData.shared_secret,
+          status: formData.status,
+          cpu_usage: Math.random() * 100,
+          memory_usage: Math.random() * 100,
+          disk_usage: Math.random() * 100
+        }]);
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Server added successfully",
+      });
+
+      setIsAddServerOpen(false);
+      setFormData({
+        name: '',
+        ip_address: '',
+        port: '1812',
+        shared_secret: '',
+        status: 'active'
+      });
+      fetchServers();
+    } catch (error) {
+      console.error('Error adding server:', error);
+    }
+  };
+
+  const handleDeleteServer = async (serverId: string) => {
+    try {
+      const { error } = await supabase
+        .from('radius_servers')
+        .delete()
+        .eq('id', serverId);
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Server deleted successfully",
+      });
+
+      fetchServers();
+    } catch (error) {
+      console.error('Error deleting server:', error);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Online': return 'bg-green-500';
-      case 'Standby': return 'bg-yellow-500';
-      case 'Offline': return 'bg-red-500';
-      case 'Maintenance': return 'bg-blue-500';
+      case 'active': return 'bg-green-500';
+      case 'inactive': return 'bg-red-500';
+      case 'maintenance': return 'bg-yellow-500';
       default: return 'bg-gray-500';
     }
   };
 
-  const getLoadColor = (load: number) => {
-    if (load < 50) return 'text-green-400';
-    if (load < 80) return 'text-yellow-400';
-    return 'text-red-400';
-  };
+  const isAdmin = userProfile?.role === 'admin';
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-white">Loading servers...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Server Status</h2>
-          <p className="text-white/60">RADIUS server monitoring and management</p>
+          <h2 className="text-2xl font-bold text-white">RADIUS Servers</h2>
+          <p className="text-white/60">Monitor and manage RADIUS authentication servers</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
-            <Settings className="h-4 w-4 mr-2" />
-            Configure
-          </Button>
-          <Button className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600">
-            <Server className="h-4 w-4 mr-2" />
-            Add Server
-          </Button>
-        </div>
+        {isAdmin && (
+          <Dialog open={isAddServerOpen} onOpenChange={setIsAddServerOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Server
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-slate-900 border-white/20 text-white">
+              <DialogHeader>
+                <DialogTitle>Add New RADIUS Server</DialogTitle>
+                <DialogDescription className="text-white/60">
+                  Configure a new RADIUS authentication server
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleAddServer} className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Server Name</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    className="bg-black/20 border-white/20 text-white"
+                    placeholder="Primary RADIUS Server"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="ip_address">IP Address</Label>
+                    <Input
+                      id="ip_address"
+                      value={formData.ip_address}
+                      onChange={(e) => setFormData(prev => ({ ...prev, ip_address: e.target.value }))}
+                      className="bg-black/20 border-white/20 text-white"
+                      placeholder="192.168.1.10"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="port">Port</Label>
+                    <Input
+                      id="port"
+                      type="number"
+                      value={formData.port}
+                      onChange={(e) => setFormData(prev => ({ ...prev, port: e.target.value }))}
+                      className="bg-black/20 border-white/20 text-white"
+                      placeholder="1812"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shared_secret">Shared Secret</Label>
+                  <Input
+                    id="shared_secret"
+                    type="password"
+                    value={formData.shared_secret}
+                    onChange={(e) => setFormData(prev => ({ ...prev, shared_secret: e.target.value }))}
+                    className="bg-black/20 border-white/20 text-white"
+                    placeholder="Enter shared secret"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={formData.status} onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}>
+                    <SelectTrigger className="bg-black/20 border-white/20 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-white/20">
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAddServerOpen(false)}
+                    className="border-white/20 text-white hover:bg-white/10"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                  >
+                    Add Server
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
-      {/* Overview Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-black/20 backdrop-blur-md border border-white/10">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white/80">Total Servers</CardTitle>
+            <Server className="h-4 w-4 text-blue-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">{servers.length}</div>
+            <p className="text-xs text-white/60">Configured servers</p>
+          </CardContent>
+        </Card>
         <Card className="bg-black/20 backdrop-blur-md border border-white/10">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white/80">Active Servers</CardTitle>
-            <Server className="h-4 w-4 text-green-400" />
+            <Activity className="h-4 w-4 text-green-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{servers.filter(s => s.status === 'Online').length}</div>
-            <p className="text-xs text-green-400">All systems operational</p>
+            <div className="text-2xl font-bold text-white">
+              {servers.filter(s => s.status === 'active').length}
+            </div>
+            <p className="text-xs text-white/60">Currently online</p>
           </CardContent>
         </Card>
         <Card className="bg-black/20 backdrop-blur-md border border-white/10">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/80">Total Load</CardTitle>
-            <Activity className="h-4 w-4 text-blue-400" />
+            <CardTitle className="text-sm font-medium text-white/80">Issues</CardTitle>
+            <AlertCircle className="h-4 w-4 text-red-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">55%</div>
-            <p className="text-xs text-white/60">Average across all servers</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-black/20 backdrop-blur-md border border-white/10">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/80">Requests/sec</CardTitle>
-            <Zap className="h-4 w-4 text-yellow-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">401</div>
-            <p className="text-xs text-white/60">Combined throughput</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-black/20 backdrop-blur-md border border-white/10">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/80">Uptime</CardTitle>
-            <Activity className="h-4 w-4 text-purple-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">99.9%</div>
-            <p className="text-xs text-white/60">Last 30 days</p>
+            <div className="text-2xl font-bold text-white">
+              {servers.filter(s => s.status !== 'active').length}
+            </div>
+            <p className="text-xs text-white/60">Needs attention</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Server Details */}
-      <div className="space-y-6">
-        {servers.map((server) => (
-          <Card key={server.id} className="bg-black/20 backdrop-blur-md border border-white/10">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500">
-                    <Server className="h-6 w-6 text-white" />
+      <Card className="bg-black/20 backdrop-blur-md border border-white/10">
+        <CardHeader>
+          <CardTitle className="text-white">Server Directory</CardTitle>
+          <CardDescription className="text-white/60">
+            Showing {servers.length} RADIUS servers
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {servers.map((server) => (
+              <div key={server.id} className="flex items-center justify-between p-4 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white font-medium">
+                    <Server className="h-5 w-5" />
                   </div>
                   <div>
-                    <CardTitle className="text-white">{server.name}</CardTitle>
-                    <CardDescription className="text-white/60">
-                      {server.hostname} • {server.ip}:{server.port}
-                    </CardDescription>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-white font-medium">{server.name}</h3>
+                      <Badge className={`${getStatusColor(server.status)} text-white text-xs`}>
+                        {server.status}
+                      </Badge>
+                    </div>
+                    <p className="text-white/60 text-sm">{server.ip_address}:{server.port}</p>
+                    <div className="flex space-x-4 text-white/60 text-sm">
+                      {server.cpu_usage && <span>CPU: {server.cpu_usage.toFixed(1)}%</span>}
+                      {server.memory_usage && <span>RAM: {server.memory_usage.toFixed(1)}%</span>}
+                      {server.disk_usage && <span>Disk: {server.disk_usage.toFixed(1)}%</span>}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <Badge className={`${getStatusColor(server.status)} text-white`}>
-                    {server.status}
-                  </Badge>
-                  <div className="flex space-x-1">
+                {isAdmin && (
+                  <div className="flex items-center space-x-2">
                     <Button variant="outline" size="sm" className="border-white/20 text-white hover:bg-white/10">
-                      <Play className="h-4 w-4" />
+                      <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm" className="border-white/20 text-white hover:bg-white/10">
-                      <Pause className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" className="border-white/20 text-white hover:bg-white/10">
-                      <RotateCcw className="h-4 w-4" />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleDeleteServer(server.id)}
+                      className="border-red-500/20 text-red-400 hover:bg-red-500/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                </div>
+                )}
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* System Metrics */}
-                <div className="space-y-4">
-                  <h4 className="text-white font-medium flex items-center">
-                    <Cpu className="h-4 w-4 mr-2" />
-                    System Metrics
-                  </h4>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-white/80">CPU Usage</span>
-                        <span className={getLoadColor(server.cpu)}>{server.cpu}%</span>
-                      </div>
-                      <Progress value={server.cpu} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-white/80">Memory</span>
-                        <span className={getLoadColor(server.memory)}>{server.memory}%</span>
-                      </div>
-                      <Progress value={server.memory} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-white/80">Disk Usage</span>
-                        <span className={getLoadColor(server.disk)}>{server.disk}%</span>
-                      </div>
-                      <Progress value={server.disk} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-white/80">Load Average</span>
-                        <span className={getLoadColor(server.load)}>{server.load}%</span>
-                      </div>
-                      <Progress value={server.load} className="h-2" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Performance Metrics */}
-                <div className="space-y-4">
-                  <h4 className="text-white font-medium flex items-center">
-                    <Activity className="h-4 w-4 mr-2" />
-                    Performance
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-white/80">Requests/sec</span>
-                      <span className="text-cyan-400 font-medium">{server.requestsPerSecond}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/80">Total Requests</span>
-                      <span className="text-white">{server.totalRequests.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/80">Success Rate</span>
-                      <span className="text-green-400 font-medium">{server.successRate}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/80">Avg Response</span>
-                      <span className="text-purple-400 font-medium">{server.avgResponseTime}ms</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/80">Active Clients</span>
-                      <span className="text-blue-400 font-medium">{server.clients}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Server Info */}
-                <div className="space-y-4">
-                  <h4 className="text-white font-medium flex items-center">
-                    <HardDrive className="h-4 w-4 mr-2" />
-                    Server Info
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-white/80">Version</span>
-                      <span className="text-white">{server.version}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/80">Uptime</span>
-                      <span className="text-green-400">{server.uptime}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/80">Port</span>
-                      <span className="text-white">{server.port}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/80">Protocol</span>
-                      <span className="text-white">UDP</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/80">Auth Method</span>
-                      <span className="text-white">PAP/CHAP/EAP</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

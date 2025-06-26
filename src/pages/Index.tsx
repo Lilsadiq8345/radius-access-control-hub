@@ -1,10 +1,11 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Users, Shield, Activity, Server, Eye, Plus, LogOut, User } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import UserManagement from '@/components/UserManagement';
 import AuthenticationLogs from '@/components/AuthenticationLogs';
 import ServerStatus from '@/components/ServerStatus';
@@ -12,45 +13,57 @@ import NetworkPolicies from '@/components/NetworkPolicies';
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    authRequestsHour: 0,
+    successRate: 0,
+    activeServers: 0
+  });
   const { signOut, userProfile } = useAuth();
   
   const isAdmin = userProfile?.role === 'admin';
 
+  const fetchDashboardStats = async () => {
+    try {
+      // Fetch total users
+      const { count: usersCount } = await supabase
+        .from('user_profiles')
+        .select('*', { count: 'exact', head: true });
+
+      // Fetch recent auth logs for success rate
+      const { data: recentLogs } = await supabase
+        .from('auth_logs')
+        .select('success')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+      // Fetch active servers
+      const { count: serversCount } = await supabase
+        .from('radius_servers')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active');
+
+      const successfulAuth = recentLogs?.filter(log => log.success).length || 0;
+      const totalAuth = recentLogs?.length || 1;
+      const successRate = Math.round((successfulAuth / totalAuth) * 100);
+
+      setStats({
+        totalUsers: usersCount || 0,
+        authRequestsHour: Math.floor(Math.random() * 5000) + 2000, // Simulated
+        successRate: successRate,
+        activeServers: serversCount || 0
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardStats();
+  }, []);
+
   const handleLogout = async () => {
     await signOut();
   };
-
-  // Mock data for statistics
-  const stats = [
-    {
-      title: "Active Users",
-      value: "1,247",
-      change: "+12%",
-      icon: Users,
-      color: "from-blue-500 to-cyan-500"
-    },
-    {
-      title: "Auth Requests/Hour",
-      value: "3,842",
-      change: "+5%",
-      icon: Shield,
-      color: "from-emerald-500 to-teal-500"
-    },
-    {
-      title: "Success Rate",
-      value: "98.7%",
-      change: "+0.3%",
-      icon: Activity,
-      color: "from-purple-500 to-pink-500"
-    },
-    {
-      title: "Active Servers",
-      value: "12",
-      change: "0%",
-      icon: Server,
-      color: "from-orange-500 to-red-500"
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
@@ -123,24 +136,73 @@ const Index = () => {
           <TabsContent value="dashboard" className="space-y-6">
             {/* Statistics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {stats.map((stat, index) => (
-                <Card key={index} className="bg-black/20 backdrop-blur-md border border-white/10 hover:bg-black/30 transition-all duration-300">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-white/80">
-                      {stat.title}
-                    </CardTitle>
-                    <div className={`p-2 rounded-lg bg-gradient-to-r ${stat.color}`}>
-                      <stat.icon className="h-4 w-4 text-white" />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-white">{stat.value}</div>
-                    <p className="text-xs text-green-400">
-                      {stat.change} from last hour
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
+              <Card className="bg-black/20 backdrop-blur-md border border-white/10 hover:bg-black/30 transition-all duration-300">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/80">
+                    Active Users
+                  </CardTitle>
+                  <div className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500">
+                    <Users className="h-4 w-4 text-white" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">{stats.totalUsers}</div>
+                  <p className="text-xs text-green-400">
+                    Registered users
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-black/20 backdrop-blur-md border border-white/10 hover:bg-black/30 transition-all duration-300">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/80">
+                    Auth Requests/Hour
+                  </CardTitle>
+                  <div className="p-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500">
+                    <Shield className="h-4 w-4 text-white" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">{stats.authRequestsHour.toLocaleString()}</div>
+                  <p className="text-xs text-green-400">
+                    +5% from last hour
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-black/20 backdrop-blur-md border border-white/10 hover:bg-black/30 transition-all duration-300">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/80">
+                    Success Rate
+                  </CardTitle>
+                  <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500">
+                    <Activity className="h-4 w-4 text-white" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">{stats.successRate}%</div>
+                  <p className="text-xs text-green-400">
+                    Last 24 hours
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-black/20 backdrop-blur-md border border-white/10 hover:bg-black/30 transition-all duration-300">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/80">
+                    Active Servers
+                  </CardTitle>
+                  <div className="p-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500">
+                    <Server className="h-4 w-4 text-white" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-white">{stats.activeServers}</div>
+                  <p className="text-xs text-white/60">
+                    Online and ready
+                  </p>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Recent Activity */}

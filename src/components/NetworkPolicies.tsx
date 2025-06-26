@@ -1,167 +1,182 @@
 
-import { useState } from 'react';
-import { Shield, Plus, Edit, Trash2, Clock, Users, Network, Lock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Shield, Search, Edit, Trash2, Settings } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface NetworkPolicy {
+  id: string;
+  name: string;
+  description?: string;
+  source_networks?: string[];
+  destination_networks?: string[];
+  allowed_services?: string[];
+  time_restrictions?: any;
+  user_groups?: string[];
+  priority: number;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 const NetworkPolicies = () => {
+  const [policies, setPolicies] = useState<NetworkPolicy[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isAddPolicyOpen, setIsAddPolicyOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    source_networks: '',
+    destination_networks: '',
+    allowed_services: '',
+    user_groups: '',
+    priority: '100',
+    enabled: true
+  });
+  const { toast } = useToast();
 
-  // Mock policy data
-  const policies = [
-    {
-      id: 1,
-      name: 'Employee WiFi Access',
-      description: 'Standard WiFi access for employees during business hours',
-      priority: 1,
-      status: 'Active',
-      conditions: {
-        userGroups: ['Employees'],
-        timeRestrictions: '08:00-18:00, Mon-Fri',
-        networkTypes: ['WiFi'],
-        locations: ['Main Building', 'Branch Office']
-      },
-      actions: {
-        allowAccess: true,
-        vlanId: 100,
-        bandwidthLimit: '50 Mbps',
-        sessionTimeout: '8 hours'
-      },
-      statistics: {
-        appliedUsers: 1247,
-        successfulAuth: 98.7,
-        lastModified: '2024-06-20'
-      }
-    },
-    {
-      id: 2,
-      name: 'Guest Network Access',
-      description: 'Limited access for guest users with time restrictions',
-      priority: 5,
-      status: 'Active',
-      conditions: {
-        userGroups: ['Guests'],
-        timeRestrictions: '24/7',
-        networkTypes: ['Guest WiFi'],
-        locations: ['All']
-      },
-      actions: {
-        allowAccess: true,
-        vlanId: 200,
-        bandwidthLimit: '10 Mbps',
-        sessionTimeout: '4 hours'
-      },
-      statistics: {
-        appliedUsers: 89,
-        successfulAuth: 95.2,
-        lastModified: '2024-06-18'
-      }
-    },
-    {
-      id: 3,
-      name: 'Admin VPN Access',
-      description: 'Full network access for administrators via VPN',
-      priority: 1,
-      status: 'Active',
-      conditions: {
-        userGroups: ['Administrators'],
-        timeRestrictions: '24/7',
-        networkTypes: ['VPN'],
-        locations: ['Remote']
-      },
-      actions: {
-        allowAccess: true,
-        vlanId: 1,
-        bandwidthLimit: 'Unlimited',
-        sessionTimeout: '12 hours'
-      },
-      statistics: {
-        appliedUsers: 12,
-        successfulAuth: 99.1,
-        lastModified: '2024-06-25'
-      }
-    },
-    {
-      id: 4,
-      name: 'IoT Device Access',
-      description: 'Restricted access for IoT devices and sensors',
-      priority: 10,
-      status: 'Active',
-      conditions: {
-        userGroups: ['IoT Devices'],
-        timeRestrictions: '24/7',
-        networkTypes: ['WiFi'],
-        locations: ['All']
-      },
-      actions: {
-        allowAccess: true,
-        vlanId: 300,
-        bandwidthLimit: '1 Mbps',
-        sessionTimeout: 'No limit'
-      },
-      statistics: {
-        appliedUsers: 234,
-        successfulAuth: 99.8,
-        lastModified: '2024-06-15'
-      }
-    },
-    {
-      id: 5,
-      name: 'After Hours Block',
-      description: 'Block non-essential access outside business hours',
-      priority: 1,
-      status: 'Active',
-      conditions: {
-        userGroups: ['Employees'],
-        timeRestrictions: '18:00-08:00, Weekends',
-        networkTypes: ['All'],
-        locations: ['All']
-      },
-      actions: {
-        allowAccess: false,
-        vlanId: null,
-        bandwidthLimit: null,
-        sessionTimeout: null
-      },
-      statistics: {
-        appliedUsers: 1247,
-        successfulAuth: 0,
-        lastModified: '2024-06-22'
-      }
-    }
-  ];
+  const fetchPolicies = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('network_policies')
+        .select('*')
+        .order('priority', { ascending: true });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Active': return 'bg-green-500';
-      case 'Inactive': return 'bg-gray-500';
-      case 'Pending': return 'bg-yellow-500';
-      default: return 'bg-gray-500';
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to fetch network policies",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setPolicies(data || []);
+    } catch (error) {
+      console.error('Error fetching policies:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getPriorityColor = (priority: number) => {
-    if (priority <= 3) return 'bg-red-500';
-    if (priority <= 7) return 'bg-yellow-500';
-    return 'bg-green-500';
+  useEffect(() => {
+    fetchPolicies();
+  }, []);
+
+  const handleAddPolicy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const { error } = await supabase
+        .from('network_policies')
+        .insert([{
+          name: formData.name,
+          description: formData.description || null,
+          source_networks: formData.source_networks.split(',').map(s => s.trim()).filter(Boolean),
+          destination_networks: formData.destination_networks.split(',').map(s => s.trim()).filter(Boolean),
+          allowed_services: formData.allowed_services.split(',').map(s => s.trim()).filter(Boolean),
+          user_groups: formData.user_groups.split(',').map(s => s.trim()).filter(Boolean),
+          priority: parseInt(formData.priority),
+          enabled: formData.enabled
+        }]);
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Network policy added successfully",
+      });
+
+      setIsAddPolicyOpen(false);
+      setFormData({
+        name: '',
+        description: '',
+        source_networks: '',
+        destination_networks: '',
+        allowed_services: '',
+        user_groups: '',
+        priority: '100',
+        enabled: true
+      });
+      fetchPolicies();
+    } catch (error) {
+      console.error('Error adding policy:', error);
+    }
   };
+
+  const handleDeletePolicy = async (policyId: string) => {
+    try {
+      const { error } = await supabase
+        .from('network_policies')
+        .delete()
+        .eq('id', policyId);
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Success",
+        description: "Network policy deleted successfully",
+      });
+
+      fetchPolicies();
+    } catch (error) {
+      console.error('Error deleting policy:', error);
+    }
+  };
+
+  const filteredPolicies = policies.filter(policy =>
+    policy.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    policy.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-white">Loading network policies...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Network Access Policies</h2>
-          <p className="text-white/60">Manage RADIUS authentication and authorization rules</p>
+          <h2 className="text-2xl font-bold text-white">Network Policies</h2>
+          <p className="text-white/60">Configure access control and network security policies</p>
         </div>
         <div className="flex items-center space-x-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/60 h-4 w-4" />
+            <Input
+              placeholder="Search policies..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 bg-black/20 border-white/20 text-white placeholder:text-white/60"
+            />
+          </div>
           <Dialog open={isAddPolicyOpen} onOpenChange={setIsAddPolicyOpen}>
             <DialogTrigger asChild>
               <Button className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600">
@@ -171,118 +186,122 @@ const NetworkPolicies = () => {
             </DialogTrigger>
             <DialogContent className="bg-slate-900 border-white/20 text-white max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Create Network Access Policy</DialogTitle>
+                <DialogTitle>Add New Network Policy</DialogTitle>
                 <DialogDescription className="text-white/60">
-                  Define conditions and actions for network access control
+                  Create a new network access control policy
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-6 py-4">
-                {/* Basic Information */}
-                <div className="space-y-4">
-                  <h4 className="text-white font-medium">Basic Information</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="policyName">Policy Name</Label>
-                      <Input id="policyName" className="bg-black/20 border-white/20 text-white" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="priority">Priority</Label>
-                      <Select>
-                        <SelectTrigger className="bg-black/20 border-white/20 text-white">
-                          <SelectValue placeholder="Select priority" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-white/20">
-                          <SelectItem value="1">1 (Highest)</SelectItem>
-                          <SelectItem value="5">5 (Medium)</SelectItem>
-                          <SelectItem value="10">10 (Lowest)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+              <form onSubmit={handleAddPolicy} className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Policy Name</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      className="bg-black/20 border-white/20 text-white"
+                      placeholder="Admin Access Policy"
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea id="description" className="bg-black/20 border-white/20 text-white" />
+                    <Label htmlFor="priority">Priority</Label>
+                    <Input
+                      id="priority"
+                      type="number"
+                      value={formData.priority}
+                      onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value }))}
+                      className="bg-black/20 border-white/20 text-white"
+                      placeholder="100"
+                      required
+                    />
                   </div>
                 </div>
-
-                {/* Conditions */}
-                <div className="space-y-4">
-                  <h4 className="text-white font-medium">Access Conditions</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="userGroups">User Groups</Label>
-                      <Select>
-                        <SelectTrigger className="bg-black/20 border-white/20 text-white">
-                          <SelectValue placeholder="Select user groups" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-white/20">
-                          <SelectItem value="employees">Employees</SelectItem>
-                          <SelectItem value="guests">Guests</SelectItem>
-                          <SelectItem value="admins">Administrators</SelectItem>
-                          <SelectItem value="iot">IoT Devices</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="networkType">Network Type</Label>
-                      <Select>
-                        <SelectTrigger className="bg-black/20 border-white/20 text-white">
-                          <SelectValue placeholder="Select network type" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-white/20">
-                          <SelectItem value="wifi">WiFi</SelectItem>
-                          <SelectItem value="ethernet">Ethernet</SelectItem>
-                          <SelectItem value="vpn">VPN</SelectItem>
-                          <SelectItem value="guest">Guest WiFi</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    className="bg-black/20 border-white/20 text-white"
+                    placeholder="Policy description..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="source_networks">Source Networks</Label>
+                    <Input
+                      id="source_networks"
+                      value={formData.source_networks}
+                      onChange={(e) => setFormData(prev => ({ ...prev, source_networks: e.target.value }))}
+                      className="bg-black/20 border-white/20 text-white"
+                      placeholder="192.168.1.0/24, 10.0.0.0/8"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="timeRestrictions">Time Restrictions</Label>
-                    <Input id="timeRestrictions" placeholder="e.g., 08:00-18:00, Mon-Fri" className="bg-black/20 border-white/20 text-white" />
+                    <Label htmlFor="destination_networks">Destination Networks</Label>
+                    <Input
+                      id="destination_networks"
+                      value={formData.destination_networks}
+                      onChange={(e) => setFormData(prev => ({ ...prev, destination_networks: e.target.value }))}
+                      className="bg-black/20 border-white/20 text-white"
+                      placeholder="0.0.0.0/0, 172.16.0.0/12"
+                    />
                   </div>
                 </div>
-
-                {/* Actions */}
-                <div className="space-y-4">
-                  <h4 className="text-white font-medium">Access Actions</h4>
-                  <div className="flex items-center space-x-2">
-                    <Switch id="allowAccess" />
-                    <Label htmlFor="allowAccess">Allow Access</Label>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="vlanId">VLAN ID</Label>
-                      <Input id="vlanId" type="number" className="bg-black/20 border-white/20 text-white" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="bandwidthLimit">Bandwidth Limit</Label>
-                      <Input id="bandwidthLimit" placeholder="e.g., 50 Mbps" className="bg-black/20 border-white/20 text-white" />
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="allowed_services">Allowed Services</Label>
+                    <Input
+                      id="allowed_services"
+                      value={formData.allowed_services}
+                      onChange={(e) => setFormData(prev => ({ ...prev, allowed_services: e.target.value }))}
+                      className="bg-black/20 border-white/20 text-white"
+                      placeholder="HTTP, HTTPS, SSH, DNS"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sessionTimeout">Session Timeout</Label>
-                    <Input id="sessionTimeout" placeholder="e.g., 8 hours" className="bg-black/20 border-white/20 text-white" />
+                    <Label htmlFor="user_groups">User Groups</Label>
+                    <Input
+                      id="user_groups"
+                      value={formData.user_groups}
+                      onChange={(e) => setFormData(prev => ({ ...prev, user_groups: e.target.value }))}
+                      className="bg-black/20 border-white/20 text-white"
+                      placeholder="admin, user, guest"
+                    />
                   </div>
                 </div>
-
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="enabled"
+                    checked={formData.enabled}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enabled: checked }))}
+                  />
+                  <Label htmlFor="enabled">Enable Policy</Label>
+                </div>
                 <div className="flex justify-end space-x-2 pt-4">
-                  <Button variant="outline" onClick={() => setIsAddPolicyOpen(false)} className="border-white/20 text-white hover:bg-white/10">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAddPolicyOpen(false)}
+                    className="border-white/20 text-white hover:bg-white/10"
+                  >
                     Cancel
                   </Button>
-                  <Button className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600">
+                  <Button
+                    type="submit"
+                    className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                  >
                     Create Policy
                   </Button>
                 </div>
-              </div>
+              </form>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-black/20 backdrop-blur-md border border-white/10">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-white/80">Total Policies</CardTitle>
@@ -290,168 +309,95 @@ const NetworkPolicies = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-white">{policies.length}</div>
-            <p className="text-xs text-white/60">Active rules</p>
+            <p className="text-xs text-white/60">Network policies</p>
           </CardContent>
         </Card>
         <Card className="bg-black/20 backdrop-blur-md border border-white/10">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/80">Active Policies</CardTitle>
-            <Network className="h-4 w-4 text-green-400" />
+            <CardTitle className="text-sm font-medium text-white/80">Active</CardTitle>
+            <Settings className="h-4 w-4 text-green-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{policies.filter(p => p.status === 'Active').length}</div>
-            <p className="text-xs text-green-400">Currently enforced</p>
+            <div className="text-2xl font-bold text-white">
+              {policies.filter(p => p.enabled).length}
+            </div>
+            <p className="text-xs text-white/60">Currently enforced</p>
           </CardContent>
         </Card>
         <Card className="bg-black/20 backdrop-blur-md border border-white/10">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/80">Covered Users</CardTitle>
-            <Users className="h-4 w-4 text-purple-400" />
+            <CardTitle className="text-sm font-medium text-white/80">High Priority</CardTitle>
+            <Shield className="h-4 w-4 text-purple-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">1,582</div>
-            <p className="text-xs text-white/60">Under policy control</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-black/20 backdrop-blur-md border border-white/10">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-white/80">Compliance Rate</CardTitle>
-            <Lock className="h-4 w-4 text-cyan-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">98.4%</div>
-            <p className="text-xs text-cyan-400">Policy adherence</p>
+            <div className="text-2xl font-bold text-white">
+              {policies.filter(p => p.priority <= 50).length}
+            </div>
+            <p className="text-xs text-white/60">Critical policies</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Policies List */}
-      <div className="space-y-4">
-        {policies.map((policy) => (
-          <Card key={policy.id} className="bg-black/20 backdrop-blur-md border border-white/10 hover:bg-black/30 transition-all duration-300">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 space-y-4">
-                  {/* Policy Header */}
-                  <div className="flex items-center space-x-3">
-                    <h3 className="text-xl font-semibold text-white">{policy.name}</h3>
-                    <Badge className={`${getStatusColor(policy.status)} text-white`}>
-                      {policy.status}
-                    </Badge>
-                    <Badge className={`${getPriorityColor(policy.priority)} text-white`}>
-                      Priority {policy.priority}
-                    </Badge>
+      <Card className="bg-black/20 backdrop-blur-md border border-white/10">
+        <CardHeader>
+          <CardTitle className="text-white">Policy Directory</CardTitle>
+          <CardDescription className="text-white/60">
+            Showing {filteredPolicies.length} of {policies.length} network policies
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {filteredPolicies.map((policy) => (
+              <div key={policy.id} className="flex items-center justify-between p-4 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium">
+                    <Shield className="h-5 w-5" />
                   </div>
-                  <p className="text-white/60">{policy.description}</p>
-
-                  {/* Policy Details Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Conditions */}
-                    <div className="space-y-3">
-                      <h4 className="text-white font-medium flex items-center">
-                        <Shield className="h-4 w-4 mr-2" />
-                        Conditions
-                      </h4>
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="text-white/60">User Groups:</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {policy.conditions.userGroups.map((group, i) => (
-                              <Badge key={i} variant="outline" className="border-blue-500/50 text-blue-400 text-xs">
-                                {group}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-white/60">Time:</span>
-                          <p className="text-white text-xs">{policy.conditions.timeRestrictions}</p>
-                        </div>
-                        <div>
-                          <span className="text-white/60">Network:</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {policy.conditions.networkTypes.map((type, i) => (
-                              <Badge key={i} variant="outline" className="border-green-500/50 text-green-400 text-xs">
-                                {type}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-white font-medium">{policy.name}</h3>
+                      <Badge className={`${policy.enabled ? 'bg-green-500' : 'bg-gray-500'} text-white text-xs`}>
+                        {policy.enabled ? 'Active' : 'Disabled'}
+                      </Badge>
+                      <Badge variant="outline" className="border-white/20 text-white/80 text-xs">
+                        Priority: {policy.priority}
+                      </Badge>
                     </div>
-
-                    {/* Actions */}
-                    <div className="space-y-3">
-                      <h4 className="text-white font-medium flex items-center">
-                        <Network className="h-4 w-4 mr-2" />
-                        Actions
-                      </h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-white/60">Access:</span>
-                          <span className={policy.actions.allowAccess ? 'text-green-400' : 'text-red-400'}>
-                            {policy.actions.allowAccess ? 'Allow' : 'Deny'}
-                          </span>
-                        </div>
-                        {policy.actions.vlanId && (
-                          <div className="flex justify-between">
-                            <span className="text-white/60">VLAN:</span>
-                            <span className="text-white">{policy.actions.vlanId}</span>
-                          </div>
-                        )}
-                        {policy.actions.bandwidthLimit && (
-                          <div className="flex justify-between">
-                            <span className="text-white/60">Bandwidth:</span>
-                            <span className="text-white">{policy.actions.bandwidthLimit}</span>
-                          </div>
-                        )}
-                        {policy.actions.sessionTimeout && (
-                          <div className="flex justify-between">
-                            <span className="text-white/60">Timeout:</span>
-                            <span className="text-white">{policy.actions.sessionTimeout}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Statistics */}
-                    <div className="space-y-3">
-                      <h4 className="text-white font-medium flex items-center">
-                        <Users className="h-4 w-4 mr-2" />
-                        Statistics
-                      </h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-white/60">Applied Users:</span>
-                          <span className="text-cyan-400">{policy.statistics.appliedUsers}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-white/60">Success Rate:</span>
-                          <span className="text-green-400">{policy.statistics.successfulAuth}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-white/60">Last Modified:</span>
-                          <span className="text-white/60">{policy.statistics.lastModified}</span>
-                        </div>
-                      </div>
+                    {policy.description && (
+                      <p className="text-white/60 text-sm">{policy.description}</p>
+                    )}
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {policy.allowed_services?.slice(0, 3).map((service, i) => (
+                        <Badge key={i} variant="outline" className="border-blue-500/20 text-blue-400 text-xs">
+                          {service}
+                        </Badge>
+                      ))}
+                      {policy.allowed_services && policy.allowed_services.length > 3 && (
+                        <Badge variant="outline" className="border-white/20 text-white/60 text-xs">
+                          +{policy.allowed_services.length - 3} more
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-col space-y-2 ml-4">
+                <div className="flex items-center space-x-2">
                   <Button variant="outline" size="sm" className="border-white/20 text-white hover:bg-white/10">
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" className="border-red-500/20 text-red-400 hover:bg-red-500/10">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleDeletePolicy(policy.id)}
+                    className="border-red-500/20 text-red-400 hover:bg-red-500/10"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
