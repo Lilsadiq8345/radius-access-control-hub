@@ -1,9 +1,11 @@
 
 import { useState } from 'react';
-import { Users, Shield, Activity, Server, Eye, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Shield, Activity, Server, Eye, Plus, LogOut, User } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
 import UserManagement from '@/components/UserManagement';
 import AuthenticationLogs from '@/components/AuthenticationLogs';
 import ServerStatus from '@/components/ServerStatus';
@@ -11,6 +13,22 @@ import NetworkPolicies from '@/components/NetworkPolicies';
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  // TODO: Replace with actual Supabase authentication
+  const userType = localStorage.getItem('userType') || 'user';
+  const isAdmin = userType === 'admin';
+
+  const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('userType');
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+    navigate('/login');
+  };
 
   // Mock data for statistics
   const stats = [
@@ -60,13 +78,27 @@ const Index = () => {
               </div>
             </div>
             <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 text-white/80">
+                <User className="h-4 w-4" />
+                <span className="text-sm capitalize">{userType}</span>
+              </div>
               <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
                 <Eye className="h-4 w-4 mr-2" />
                 Live Monitor
               </Button>
-              <Button className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600">
-                <Plus className="h-4 w-4 mr-2" />
-                Add User
+              {isAdmin && (
+                <Button className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add User
+                </Button>
+              )}
+              <Button 
+                variant="outline" 
+                onClick={handleLogout}
+                className="border-red-500/20 text-red-400 hover:bg-red-500/10"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
               </Button>
             </div>
           </div>
@@ -75,22 +107,26 @@ const Index = () => {
 
       <div className="container mx-auto px-6 py-8">
         <Tabs value={activeSection} onValueChange={setActiveSection} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 bg-black/20 backdrop-blur-md border border-white/10">
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-3'} bg-black/20 backdrop-blur-md border border-white/10`}>
             <TabsTrigger value="dashboard" className="data-[state=active]:bg-white/20 text-white">
               Dashboard
             </TabsTrigger>
-            <TabsTrigger value="users" className="data-[state=active]:bg-white/20 text-white">
-              Users
-            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="users" className="data-[state=active]:bg-white/20 text-white">
+                Users
+              </TabsTrigger>
+            )}
             <TabsTrigger value="logs" className="data-[state=active]:bg-white/20 text-white">
               Auth Logs
             </TabsTrigger>
             <TabsTrigger value="servers" className="data-[state=active]:bg-white/20 text-white">
               Servers
             </TabsTrigger>
-            <TabsTrigger value="policies" className="data-[state=active]:bg-white/20 text-white">
-              Policies
-            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="policies" className="data-[state=active]:bg-white/20 text-white">
+                Policies
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -175,9 +211,11 @@ const Index = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="users">
-            <UserManagement />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="users">
+              <UserManagement />
+            </TabsContent>
+          )}
 
           <TabsContent value="logs">
             <AuthenticationLogs />
@@ -187,9 +225,11 @@ const Index = () => {
             <ServerStatus />
           </TabsContent>
 
-          <TabsContent value="policies">
-            <NetworkPolicies />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="policies">
+              <NetworkPolicies />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
