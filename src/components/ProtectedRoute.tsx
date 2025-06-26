@@ -1,5 +1,6 @@
 
 import { Navigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -7,15 +8,21 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps) => {
-  // TODO: Replace with actual Supabase authentication check
-  const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
-  const userType = localStorage.getItem('userType');
+  const { user, userProfile, loading } = useAuth();
 
-  if (!isAuthenticated) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  if (requireAdmin && userType !== 'admin') {
+  if (requireAdmin && userProfile?.role !== 'admin') {
     return <Navigate to="/unauthorized" replace />;
   }
 

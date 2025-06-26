@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -22,41 +22,37 @@ const Register = () => {
     role: 'user'
   });
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { signUp, user } = useAuth();
+
+  // Redirect if already logged in
+  if (user) {
+    navigate('/');
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     if (formData.password !== formData.confirmPassword) {
-      toast({
-        title: "Password Mismatch",
-        description: "Passwords do not match. Please try again.",
-        variant: "destructive",
-      });
       setIsLoading(false);
       return;
     }
 
     try {
-      // TODO: Replace with actual Supabase authentication
-      console.log('Registration attempt:', formData);
+      const { error } = await signUp(
+        formData.email, 
+        formData.password, 
+        formData.fullName, 
+        formData.department, 
+        formData.role
+      );
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      toast({
-        title: "Registration Successful",
-        description: "Your account has been created successfully!",
-      });
-      
-      navigate('/login');
+      if (!error) {
+        navigate('/login');
+      }
     } catch (error) {
-      toast({
-        title: "Registration Failed",
-        description: "An error occurred during registration. Please try again.",
-        variant: "destructive",
-      });
+      console.error('Registration error:', error);
     } finally {
       setIsLoading(false);
     }

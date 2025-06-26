@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -18,35 +18,26 @@ const Login = () => {
     userType: 'user' as 'user' | 'admin'
   });
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { signIn, user } = useAuth();
+
+  // Redirect if already logged in
+  if (user) {
+    navigate('/');
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      // TODO: Replace with actual Supabase authentication
-      console.log('Login attempt:', formData);
+      const { error } = await signIn(formData.email, formData.password);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      toast({
-        title: "Login Successful",
-        description: `Welcome back! Logged in as ${formData.userType}`,
-      });
-      
-      // Store user type in localStorage for demo purposes
-      localStorage.setItem('userType', formData.userType);
-      localStorage.setItem('isAuthenticated', 'true');
-      
-      navigate('/');
+      if (!error) {
+        navigate('/');
+      }
     } catch (error) {
-      toast({
-        title: "Login Failed",
-        description: "Invalid credentials. Please try again.",
-        variant: "destructive",
-      });
+      console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }

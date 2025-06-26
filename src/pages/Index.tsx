@@ -1,11 +1,10 @@
 
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Users, Shield, Activity, Server, Eye, Plus, LogOut, User } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import UserManagement from '@/components/UserManagement';
 import AuthenticationLogs from '@/components/AuthenticationLogs';
 import ServerStatus from '@/components/ServerStatus';
@@ -13,21 +12,12 @@ import NetworkPolicies from '@/components/NetworkPolicies';
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
-  const navigate = useNavigate();
-  const { toast } = useToast();
+  const { signOut, userProfile } = useAuth();
   
-  // TODO: Replace with actual Supabase authentication
-  const userType = localStorage.getItem('userType') || 'user';
-  const isAdmin = userType === 'admin';
+  const isAdmin = userProfile?.role === 'admin';
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('userType');
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
-    navigate('/login');
+  const handleLogout = async () => {
+    await signOut();
   };
 
   // Mock data for statistics
@@ -80,7 +70,8 @@ const Index = () => {
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2 text-white/80">
                 <User className="h-4 w-4" />
-                <span className="text-sm capitalize">{userType}</span>
+                <span className="text-sm capitalize">{userProfile?.role || 'user'}</span>
+                <span className="text-xs text-white/60">({userProfile?.full_name})</span>
               </div>
               <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
                 <Eye className="h-4 w-4 mr-2" />
