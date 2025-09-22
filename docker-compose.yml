@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # RADIUS Server Backend
+  radius-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: radius-server
+    ports:
+      - "1812:1812"  # RADIUS authentication
+      - "1813:1813"  # RADIUS accounting
+      - "3001:3001"  # API server
+    environment:
+      - NODE_ENV=production
+      - RADIUS_PORT=1812
+      - API_PORT=3001
+      - RADIUS_SECRET=${RADIUS_SECRET:-default_secret}
+    volumes:
+      - radius-logs:/app/logs
+    networks:
+      - radius-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/status', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Application
+  radius-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: radius-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_RADIUS_API_URL=http://radius-server:3001
+    depends_on:
+      radius-server:
+        condition: service_healthy
+    networks:
+      - radius-network
+    restart: unless-stopped
+
+  # PostgreSQL Database (Optional - if not using Supabase)
+  postgres:
+    image: postgres:15-alpine
+    container_name: radius-db
+    environment:
+      - POSTGRES_DB=radius_central
+      - POSTGRES_USER=${DB_USER:-radius_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-radius_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./src/lib/database-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - radius-network
+    restart: unless-stopped
+    profiles:
+      - database
+
+  # Redis for caching (Optional)
+  redis:
+    image: redis:7-alpine
+    container_name: radius-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - radius-network
+    restart: unless-stopped
+    profiles:
+      - cache
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: radius-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - radius-frontend
+      - radius-server
+    networks:
+      - radius-network
+    restart: unless-stopped
+    profiles:
+      - proxy
+
+volumes:
+  postgres-data:
+  redis-data:
+  radius-logs:
+
+networks:
+  radius-network:
+    driver: bridge

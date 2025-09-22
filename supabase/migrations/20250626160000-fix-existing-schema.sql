@@ -1,44 +1,5 @@
-
--- Create admin user profile manually (since we need specific credentials)
--- Note: You'll need to create the auth user through Supabase Auth first, then we'll update the profile
-
--- First, let's create a function to safely create an admin user
-CREATE OR REPLACE FUNCTION create_admin_user(
-  admin_email TEXT,
-  admin_password TEXT,
-  admin_name TEXT DEFAULT 'System Administrator'
-)
-RETURNS JSON
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  new_user_id UUID;
-  result JSON;
-BEGIN
-  -- Note: This function helps identify the admin user after manual creation
-  -- The actual auth user must be created through Supabase Auth API
-  
-  -- Check if admin already exists
-  IF EXISTS (
-    SELECT 1 FROM public.user_profiles 
-    WHERE role = 'admin' 
-    AND id IN (
-      SELECT id FROM auth.users WHERE email = admin_email
-    )
-  ) THEN
-    RETURN json_build_object(
-      'success', false, 
-      'message', 'Admin user already exists'
-    );
-  END IF;
-  
-  RETURN json_build_object(
-    'success', true, 
-    'message', 'Admin setup function ready. Create user through Auth API first.'
-  );
-END;
-$$;
+-- Migration to fix existing schema and add missing functions
+-- This migration assumes tables already exist and only adds missing functions
 
 -- Fix the handle_new_user function to be more robust
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -66,28 +27,40 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Create sample radius users for testing
-INSERT INTO public.radius_users (user_profile_id, username, password_hash, auth_methods) 
-SELECT 
-  NULL, -- Will be linked to user profiles later
-  'test_user_' || generate_series,
-  crypt('password123', gen_salt('bf')),
-  ARRAY['password']
-FROM generate_series(1, 5);
-
--- Create some sample auth logs
-INSERT INTO public.auth_logs (username, ip_address, auth_method, success, failure_reason) VALUES
-('admin', '192.168.1.100', 'password', true, NULL),
-('john.doe', '192.168.1.101', 'password', true, NULL),
-('jane.smith', '192.168.1.102', 'password', false, 'Invalid password'),
-('test_user_1', '192.168.1.103', 'password', true, NULL),
-('test_user_2', '192.168.1.104', 'password', false, 'Account locked');
-
--- Create sample sessions
-INSERT INTO public.radius_sessions (username, session_id, nas_ip_address, nas_port, start_time, status) VALUES
-('admin', 'sess_' || gen_random_uuid(), '192.168.1.10', 1812, NOW() - INTERVAL '2 hours', 'active'),
-('john.doe', 'sess_' || gen_random_uuid(), '192.168.1.11', 1812, NOW() - INTERVAL '1 hour', 'active'),
-('test_user_1', 'sess_' || gen_random_uuid(), '192.168.1.10', 1812, NOW() - INTERVAL '30 minutes', 'stopped');
+-- Create admin user function
+CREATE OR REPLACE FUNCTION create_admin_user(
+  admin_email TEXT,
+  admin_password TEXT,
+  admin_name TEXT DEFAULT 'System Administrator'
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  new_user_id UUID;
+  result JSON;
+BEGIN
+  -- Check if admin already exists
+  IF EXISTS (
+    SELECT 1 FROM public.user_profiles 
+    WHERE role = 'admin' 
+    AND id IN (
+      SELECT id FROM auth.users WHERE email = admin_email
+    )
+  ) THEN
+    RETURN json_build_object(
+      'success', false, 
+      'message', 'Admin user already exists'
+    );
+  END IF;
+  
+  RETURN json_build_object(
+    'success', true, 
+    'message', 'Admin setup function ready. Create user through Auth API first.'
+  );
+END;
+$$;
 
 -- Function to promote user to admin by email
 CREATE OR REPLACE FUNCTION promote_to_admin(user_email TEXT)
@@ -157,3 +130,23 @@ BEGIN
   RETURN json_build_object('success', true, 'message', 'User profile created successfully');
 END;
 $$;
+
+-- Add sample data only if tables are empty
+DO $$
+BEGIN
+  -- Add sample radius servers if none exist
+  IF NOT EXISTS (SELECT 1 FROM public.radius_servers LIMIT 1) THEN
+    INSERT INTO public.radius_servers (name, ip_address, port, shared_secret, status, cpu_usage, memory_usage, disk_usage) VALUES
+    ('Primary RADIUS', '192.168.1.10', 1812, 'primary_secret_key', 'active', 67.5, 45.2, 23.8),
+    ('Secondary RADIUS', '192.168.1.11', 1812, 'secondary_secret_key', 'active', 43.2, 38.7, 19.4),
+    ('Backup RADIUS', '192.168.1.12', 1812, 'backup_secret_key', 'active', 12.1, 15.9, 8.2);
+  END IF;
+
+  -- Add sample network policies if none exist
+  IF NOT EXISTS (SELECT 1 FROM public.network_policies LIMIT 1) THEN
+    INSERT INTO public.network_policies (name, description, source_networks, destination_networks, allowed_services, priority, enabled) VALUES
+    ('Admin Full Access', 'Complete network access for administrators', ARRAY['192.168.1.0/24'], ARRAY['0.0.0.0/0'], ARRAY['ALL'], 10, true),
+    ('User Web Access', 'Basic web access for regular users', ARRAY['192.168.100.0/24'], ARRAY['0.0.0.0/0'], ARRAY['HTTP', 'HTTPS', 'DNS'], 50, true),
+    ('Guest Limited', 'Restricted access for guest users', ARRAY['192.168.200.0/24'], ARRAY['8.8.8.8/32', '1.1.1.1/32'], ARRAY['HTTP', 'HTTPS'], 90, true);
+  END IF;
+END $$; 

@@ -1,0 +1,31 @@
+{
+    "name": "radius-server-backend",
+    "version": "1.0.0",
+    "description": "RADIUS server backend for the Central Management System",
+    "main": "radius-server.js",
+    "scripts": {
+        "start": "node radius-server.js",
+        "dev": "nodemon radius-server.js",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [
+        "radius",
+        "authentication",
+        "network",
+        "server"
+    ],
+    "author": "RADIUS Central Management System",
+    "license": "MIT",
+    "dependencies": {
+        "express": "^4.18.2",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "ws": "^8.14.2"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    }
+}

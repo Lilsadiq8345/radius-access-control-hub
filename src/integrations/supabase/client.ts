@@ -2,10 +2,29 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://gjdyvirjbmqyxncvtrmf.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdqZHl2aXJqYm1xeXhuY3Z0cm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NDk1NjksImV4cCI6MjA2NjUyNTU2OX0.8SHwjH_aePn_k531qXytAbaQrWARL3v3SHTXn7oE-5E";
+// TODO: Replace with your actual Supabase credentials from Settings → API
+// Go to your new Supabase project: https://supabase.com/dashboard/project/atlgpebjqcgbusxvlura
+// Then go to Settings → API to get these values
+
+const SUPABASE_URL = "https://atlgpebjqcgbusxvlura.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0bGdwZWJqcWNnYnVzeHZsdXJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYzOTQ2OTMsImV4cCI6MjA3MTk3MDY5M30.cdtHsFzomIvIMhAwuPmWnIaCFHh2SeD35_GcMNwNCiY";
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true
+    }
+});
+
+// Test connection on initialization
+supabase.auth.getSession().then(({ data, error }) => {
+    if (error) {
+        console.error('Supabase connection error:', error);
+    } else {
+        console.log('Supabase connected successfully');
+    }
+});

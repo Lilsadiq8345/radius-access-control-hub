@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Users, Shield, Activity, Server, Eye, Plus, LogOut, User } from 'lucide-react';
+import { Users, Shield, Activity, Server, Eye, Plus, LogOut, User, Bell, BarChart3, Monitor } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,6 +10,12 @@ import UserManagement from '@/components/UserManagement';
 import AuthenticationLogs from '@/components/AuthenticationLogs';
 import ServerStatus from '@/components/ServerStatus';
 import NetworkPolicies from '@/components/NetworkPolicies';
+import TestConnection from '@/components/TestConnection';
+import RadiusServerManager from '@/components/RadiusServerManager';
+import AlertManager from '@/components/AlertManager';
+import PerformanceAnalytics from '@/components/PerformanceAnalytics';
+import SystemStatus from '@/components/SystemStatus';
+import AdminDashboard from '@/components/AdminDashboard';
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -20,8 +26,13 @@ const Index = () => {
     activeServers: 0
   });
   const { signOut, userProfile } = useAuth();
-  
+
   const isAdmin = userProfile?.role === 'admin';
+
+  // If user is admin, show admin dashboard
+  if (isAdmin) {
+    return <AdminDashboard />;
+  }
 
   const fetchDashboardStats = async () => {
     try {
@@ -96,8 +107,8 @@ const Index = () => {
                   Add User
                 </Button>
               )}
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={handleLogout}
                 className="border-red-500/20 text-red-400 hover:bg-red-500/10"
               >
@@ -111,7 +122,7 @@ const Index = () => {
 
       <div className="container mx-auto px-6 py-8">
         <Tabs value={activeSection} onValueChange={setActiveSection} className="space-y-6">
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-3'} bg-black/20 backdrop-blur-md border border-white/10`}>
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-10' : 'grid-cols-6'} bg-black/20 backdrop-blur-md border border-white/10`}>
             <TabsTrigger value="dashboard" className="data-[state=active]:bg-white/20 text-white">
               Dashboard
             </TabsTrigger>
@@ -131,6 +142,32 @@ const Index = () => {
                 Policies
               </TabsTrigger>
             )}
+            {isAdmin && (
+              <TabsTrigger value="radius-manager" className="data-[state=active]:bg-white/20 text-white">
+                RADIUS Server
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="alerts" className="data-[state=active]:bg-white/20 text-white">
+                <Bell className="h-4 w-4 mr-1" />
+                Alerts
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="analytics" className="data-[state=active]:bg-white/20 text-white">
+                <BarChart3 className="h-4 w-4 mr-1" />
+                Analytics
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="system-status" className="data-[state=active]:bg-white/20 text-white">
+                <Monitor className="h-4 w-4 mr-1" />
+                Status
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="test" className="data-[state=active]:bg-white/20 text-white">
+              Test
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
@@ -220,7 +257,7 @@ const Index = () => {
                       <div className="flex items-center space-x-3">
                         <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                         <div>
-                          <p className="text-white font-medium">user{i}@company.com</p>
+                          <p className="text-white font-medium">user{i}@radiuscorp.com</p>
                           <p className="text-white/60 text-sm">192.168.1.{100 + i}</p>
                         </div>
                       </div>
@@ -283,6 +320,34 @@ const Index = () => {
               <NetworkPolicies />
             </TabsContent>
           )}
+
+          {isAdmin && (
+            <TabsContent value="radius-manager">
+              <RadiusServerManager />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="alerts">
+              <AlertManager />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="analytics">
+              <PerformanceAnalytics />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="system-status">
+              <SystemStatus />
+            </TabsContent>
+          )}
+
+          <TabsContent value="test">
+            <TestConnection />
+          </TabsContent>
         </Tabs>
       </div>
     </div>

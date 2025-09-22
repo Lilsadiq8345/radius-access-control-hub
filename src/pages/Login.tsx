@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Eye, EyeOff, User, Lock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -19,10 +20,17 @@ const Login = () => {
   });
   const navigate = useNavigate();
   const { signIn, user } = useAuth();
+  const { toast } = useToast();
 
-  // Redirect if already logged in
+  // Redirect if already logged in - using useEffect to avoid render-time navigation
+  useEffect(() => {
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
+
+  // Don't render the login form if user is already logged in
   if (user) {
-    navigate('/');
     return null;
   }
 
@@ -30,9 +38,30 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
 
+    // Validation
+    if (!formData.email.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Email is required.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (!formData.password.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Password is required.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const { error } = await signIn(formData.email, formData.password);
-      
+
       if (!error) {
         navigate('/');
       }
@@ -89,7 +118,7 @@ const Login = () => {
                         id="email"
                         name="email"
                         type="email"
-                        placeholder="user@company.com"
+                        placeholder="user@radiuscorp.com"
                         value={formData.email}
                         onChange={handleInputChange}
                         className="pl-10 bg-black/20 border-white/20 text-white placeholder:text-white/60"
@@ -106,7 +135,7 @@ const Login = () => {
                         id="password"
                         name="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
+                        placeholder="Enter your RADIUS password"
                         value={formData.password}
                         onChange={handleInputChange}
                         className="pl-10 pr-10 bg-black/20 border-white/20 text-white placeholder:text-white/60"
@@ -122,8 +151,8 @@ const Login = () => {
                     </div>
                   </div>
 
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
                     disabled={isLoading}
                   >
@@ -142,7 +171,7 @@ const Login = () => {
                         id="admin-email"
                         name="email"
                         type="email"
-                        placeholder="admin@company.com"
+                        placeholder="admin@radiuscorp.com"
                         value={formData.email}
                         onChange={handleInputChange}
                         className="pl-10 bg-black/20 border-white/20 text-white placeholder:text-white/60"
@@ -159,7 +188,7 @@ const Login = () => {
                         id="admin-password"
                         name="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Enter admin password"
+                        placeholder="Enter admin RADIUS password"
                         value={formData.password}
                         onChange={handleInputChange}
                         className="pl-10 pr-10 bg-black/20 border-white/20 text-white placeholder:text-white/60"
@@ -175,8 +204,8 @@ const Login = () => {
                     </div>
                   </div>
 
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
                     disabled={isLoading}
                   >
